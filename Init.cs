@@ -30,6 +30,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Data;
 using System.Data.SQLite;
+using System.Configuration;
 
 namespace ElectriCSInitElements
 {
@@ -66,7 +67,9 @@ namespace ElectriCSInitElements
 
 		private void Connected ()
 		{
-			Connect = new SQLiteConnection ("Data Source=reactance.dat; Version=3;");
+			// Параметры конфигурации считываются из конфигурационного
+			// файла ВЫЗЫВАЮЩЕГО приложения
+			Connect = new SQLiteConnection ("Data Source=" + ConfigurationSettings.AppSettings["InitPath"] +"reactance.dat; Version=3;");
 			try {
 				Connect.Open ();
 			} catch (SQLiteException ex){

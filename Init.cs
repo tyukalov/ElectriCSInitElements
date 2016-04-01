@@ -31,6 +31,7 @@ using System.Numerics;
 using System.Data;
 using System.Data.SQLite;
 using System.Configuration;
+using System.Globalization;
 
 namespace ElectriCSInitElements
 {
@@ -54,38 +55,51 @@ namespace ElectriCSInitElements
 		{
 		}
 
-        private void ValidInit(string name, out double result)
+        private double ValidInit(string name)
         {
-            try
+			double result;
+            if (!(double.TryParse(name, out result)))
             {
-                double.TryParse(name, out result);
+				char [] Var = name.ToCharArray();
+				for (int i=0; i < Var.Length; i++){
+					if(Var[i] == '.') Var[i] = ',';
+				}
+				name = String.Concat(Var);
+				if(double.TryParse(name, out result)){
+                	return result;
+				}else{
+					throw new InvalidInitArgument();
+				}
             }
-            catch
+            else
             {
-                throw new InvalidInitArgument();
+				return result;
             }
         }
 
-        private void AvailableInit(dynamic obj, Dictionary<string, string> args, double lenght = 1) // Дефолтное значение 1 для длины обеспечивает универсальность метода как для удельных, так и для абсолютных значений сопротивлений
-        {
-            double resistance = 0, reactance = 0, zero_resistance = 0, zero_reactance = 0;
-            if (args.ContainsKey("resistance"))
-            {
-                ValidInit(args["resistance"], out resistance);
-            }
-            if (args.ContainsKey("reactance"))
-            {
-                ValidInit(args["reactance"], out reactance);
-            }
-            else
-                if (args.ContainsKey("zero_resistance"))
-                {
-                    ValidInit(args["zero_resistance"], out zero_resistance);
-                }
-            if (args.ContainsKey("zero_reactance"))
-            {
-                ValidInit(args["zero_reactance"], out zero_reactance);
-            }
+        private void AvailableInit (dynamic obj, Dictionary<string, string> args, double lenght = 1) // Дефолтное значение 1 для длины обеспечивает универсальность метода как для удельных, так и для абсолютных значений сопротивлений
+		{
+			double resistance, reactance, zero_resistance, zero_reactance;
+			if (args.ContainsKey ("resistance")) {
+				resistance = ValidInit (args ["resistance"]);
+			} else {
+				resistance = 0;
+			}
+			if (args.ContainsKey ("reactance")) {
+				reactance = ValidInit (args ["reactance"]);
+			} else {
+				reactance = 0;
+			}
+			if (args.ContainsKey ("zero_resistance")) {
+				zero_resistance = ValidInit (args ["zero_resistance"]);
+			} else {
+				zero_resistance = 0;
+			}
+			if (args.ContainsKey ("zero_reactance")) {
+				zero_reactance = ValidInit (args ["zero_reactance"]);
+			} else {
+				zero_reactance = 0;
+			}
             Initialize(obj, lenght * resistance, lenght * reactance, lenght * zero_resistance, lenght * zero_reactance);
         }
 
@@ -130,7 +144,7 @@ namespace ElectriCSInitElements
             double lenght;
             if (args.ContainsKey("lenght"))
             {
-                ValidInit(args["lenght"], out lenght);
+                lenght = ValidInit(args["lenght"]);
             }
             else
             {
@@ -201,7 +215,7 @@ namespace ElectriCSInitElements
 			double lenght;
             if (args.ContainsKey("lenght"))
             {
-                ValidInit(args["lenght"], out lenght);
+                lenght = ValidInit(args["lenght"]);
             }
             else
             {
@@ -215,8 +229,7 @@ namespace ElectriCSInitElements
             {
                 if (args.ContainsKey("amperage"))
                 {
-                    double amperage;
-                    ValidInit(args["amperage"], out amperage);
+                    double amperage = ValidInit(args["amperage"]);
                     if (!(amperage == 250 || amperage == 400 || amperage == 630 || amperage == 1250 || amperage == 1600 || amperage == 2500 || amperage == 3200 || amperage == 4000))
                     {
                         throw new InvalidInitArgument();
@@ -270,26 +283,26 @@ namespace ElectriCSInitElements
 		{
 			double resistance, reactance, zero_resistance, zero_reactance;
 			double lenght, cross_section, a;
-            ValidInit(args["lenght"], out lenght);
-            ValidInit("cross_section", out cross_section);
+            lenght = ValidInit(args["lenght"]);
+            cross_section = ValidInit(args["cross_section"]);
 			if (args.ContainsKey ("resistance")) {
-                ValidInit(args["resistance"], out resistance);
+                resistance = ValidInit(args["resistance"]);
 			} else {
 				resistance = Ro[args["material"]] * lenght / cross_section;
 			}
 			if (args.ContainsKey ("reactance")) {
-                ValidInit(args["reactance"], out reactance);
+               reactance =  ValidInit(args["reactance"]);
 			} else {
-                ValidInit(args["a"], out a);
+               a =  ValidInit(args["a"]);
 				reactance = 0.000145 * Math.Log10(1000 * a / (Math.Sqrt(cross_section / Math.PI)));
 			}
 			if (args.ContainsKey ("zero_resistance")) {
-                ValidInit(args["zero_resistance"], out zero_resistance);
+                zero_resistance = ValidInit(args["zero_resistance"]);
 			} else {
 				zero_resistance = 0.00015 * resistance;
 			}
 			if (args.ContainsKey ("zero_reactance")) {
-				double.TryParse (args ["zero_reactance"], out zero_reactance);
+				zero_reactance = ValidInit(args ["zero_reactance"]);
 			} else {
 				zero_reactance = AirwayX0X1[args["type"]] * reactance;
 			}
@@ -313,14 +326,14 @@ namespace ElectriCSInitElements
 		{
 			double power, voltage, Pk, uk;
 			double resistance, reactance, zero_resistance, zero_reactance;
-            ValidInit(args["voltage"], out voltage);
-            ValidInit(args["power"], out power);
-            ValidInit(args["Pk"], out Pk);
-            ValidInit(args["uk"], out uk);
+            voltage = ValidInit(args["voltage"]);
+            power = ValidInit(args["power"]);
+            Pk = ValidInit(args["Pk"]);
+            uk = ValidInit(args["uk"]);
 			resistance = Pk * Math.Pow ((voltage / power), 2);
 			reactance = (Math.Pow (voltage, 2) / (100 * power)) * Math.Sqrt (Math.Pow (uk, 2) - Math.Pow ((100 * Pk / power), 2));
 			if (args.ContainsKey ("zero_resistance")) {
-                ValidInit(args["zero_resistance"], out zero_resistance);
+                zero_resistance = ValidInit(args["zero_resistance"]);
 			} else {
 				if (args.ContainsKey("scheme") && args["scheme"]=="DD"){
 					zero_resistance = 3 * resistance;
@@ -329,7 +342,7 @@ namespace ElectriCSInitElements
 				}
 			}
 			if (args.ContainsKey ("zero_reactance")) {
-                ValidInit(args["zero_reactance"], out zero_reactance);
+                zero_reactance = ValidInit(args["zero_reactance"]);
 			} else {
 				if (args.ContainsKey("scheme") && args["scheme"]=="DD"){
 					zero_reactance = 3 * reactance;
@@ -357,19 +370,19 @@ namespace ElectriCSInitElements
 		{
 			double reactance = 0;
 			if (args.ContainsKey ("reactance")) {
-                ValidInit(args["reactance"], out reactance);
+                reactance = ValidInit(args["reactance"]);
 			}
 			if (args.ContainsKey ("power") && args.ContainsKey ("lowvoltage")) {
 				double power, lowvoltage;
-                ValidInit(args["power"], out power);
-                ValidInit(args["lowvoltage"], out lowvoltage);
+                power = ValidInit(args["power"]);
+                lowvoltage = ValidInit(args["lowvoltage"]);
 				reactance = Math.Pow (lowvoltage, 2) / power;
 			}
 			if (args.ContainsKey ("amperage") && args.ContainsKey ("highvoltage") && args.ContainsKey ("lowvoltage")) {
 				double amperage, highvoltage, lowvoltage;
-                ValidInit(args["amperage"], out amperage);
-                ValidInit(args["highvoltage"], out highvoltage);
-                ValidInit(args["lowvoltage"], out lowvoltage);
+                amperage = ValidInit(args["amperage"]);
+                highvoltage = ValidInit(args["highvoltage"]);
+                lowvoltage = ValidInit(args["lowvoltage"]);
 				reactance = Math.Pow(lowvoltage, 2) / (Math.Sqrt(3) * amperage * highvoltage);
 			}
 			Initialize(obj, 0, reactance, 0, 0);
@@ -393,19 +406,19 @@ namespace ElectriCSInitElements
 			double resistance, reactance, zero_resistance, zero_reactance;
 			double deltaP, amperage;
 			if (args.ContainsKey ("dP") && args.ContainsKey ("amperage")) {
-				ValidInit (args ["dP"], out deltaP);
-				ValidInit (args ["amperage"], out amperage);
+				deltaP = ValidInit (args ["dP"]);
+				amperage = ValidInit (args ["amperage"]);
 				resistance = deltaP / Math.Pow (amperage, 2);
 			} else {
 				throw new InvalidInitArgument ();
 			}
 			if (args.ContainsKey ("reactance")) {
-				ValidInit (args ["reactance"], out reactance);
+				reactance = ValidInit (args ["reactance"]);
 			} else {
 				if (args.ContainsKey("L") && args.ContainsKey("M")){
 					double L, M;
-					ValidInit(args["L"], out L);
-					ValidInit(args["M"], out M);
+					L = ValidInit(args["L"]);
+					M = ValidInit(args["M"]);
 					reactance	= 100 * Math.PI * (L - M);
 				}else{
 					throw new InvalidInitArgument();

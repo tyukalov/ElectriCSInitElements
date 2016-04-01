@@ -66,6 +66,29 @@ namespace ElectriCSInitElements
             }
         }
 
+        private void AvailableInit(dynamic obj, Dictionary<string, string> args, double lenght = 1) // Дефолтное значение 1 для длины обеспечивает универсальность метода как для удельных, так и для абсолютных значений сопротивлений
+        {
+            double resistance = 0, reactance = 0, zero_resistance = 0, zero_reactance = 0;
+            if (args.ContainsKey("resistance"))
+            {
+                ValidInit(args["resistance"], out resistance);
+            }
+            if (args.ContainsKey("reactance"))
+            {
+                ValidInit(args["reactance"], out reactance);
+            }
+            else
+                if (args.ContainsKey("zero_resistance"))
+                {
+                    ValidInit(args["zero_resistance"], out zero_resistance);
+                }
+            if (args.ContainsKey("zero_reactance"))
+            {
+                ValidInit(args["zero_reactance"], out zero_reactance);
+            }
+            Initialize(obj, lenght * resistance, lenght * reactance, lenght * zero_resistance, lenght * zero_reactance);
+        }
+
 		private void Connected ()
 		{
 			// Параметры конфигурации считываются из конфигурационного
@@ -82,8 +105,8 @@ namespace ElectriCSInitElements
 		{
 			obj.Resistance			= resistance;
 			obj.Reactance			= reactance;
-			obj.ZeroReactance	= zero_reactance;
-			obj.ZeroResistance	= zero_resistance;
+			obj.ZeroReactance	= 2 * reactance + zero_reactance;
+			obj.ZeroResistance	= 2 * zero_resistance + zero_resistance;
 			obj.Impedance			= new Complex(resistance, reactance);
 			obj.ZeroImpedance	= new Complex(zero_resistance, zero_reactance);
 			obj.Abs						= obj.Impedance.Magnitude;
@@ -104,58 +127,62 @@ namespace ElectriCSInitElements
 		/// </param>
 		public void InitCable(dynamic obj, Dictionary<string,string> args)
 		{
-			Connected();
-			if (Connect.State == ConnectionState.Open){
-				string cabtype;
-				switch (args["material"]) {
-				case "al": 
-				{
-					cabtype = "plumbum_shell";
-					break;
-				}
-				case "cu":
-				{
-					cabtype = "steel_shell";
-					break;
-				}
-				default:
-					throw new InvalidInitArgument();
-					//break;
-				}
-				SQLiteCommand cmd = new SQLiteCommand(Connect);
-				cmd.CommandText = "SELECT resistance, reactance, zero_resistance, zero_reactance FROM cable WHERE material='" + args["material"] + "' AND type='" +cabtype + "' AND cross_section='" + args["cross_section"] + "' AND cores='4'";
-				SQLiteDataReader reader = cmd.ExecuteReader();
-//				while(reader.Read()){
-//					Console.WriteLine ("resist -> " + reader["resistance"].ToString() + "react -> " + reader["reactance"].ToString());
-//				}
-                double lenght;
-                //try
-                //{
-                //    double.TryParse(args["lenght"], out lenght);
-                //}
-                //catch
-                //{
-                //    throw new InvalidInitArgument();
-                //}
+            double lenght;
+            if (args.ContainsKey("lenght"))
+            {
                 ValidInit(args["lenght"], out lenght);
-				if (reader.Read())
-				{
-//					Dictionary<string,double> result = new Dictionary<string, double>(){{"resistance", lenght * (double)reader["resistance"]}, {"reactance",  lenght *(double) reader["reactance"]}, {"zero_resistance", lenght * (double) reader["zero_resistance"]}, {"zero_reactance",  lenght *(double) reader["zero_reactance"]}}; 
-					Initialize(obj, lenght * (double)reader["resistance"], lenght *(double) reader["reactance"],  lenght * (double) reader["zero_resistance"], lenght *(double) reader["zero_reactance"]); 
-					Connect.Dispose();
-//					return result;
-				}
-				else
-				{
-					Connect.Dispose();
+            }
+            else
+            {
+                throw new InvalidInitArgument();
+            }
+            if (args.ContainsKey("material") && args.ContainsKey("cross_sextion"))
+            {
+			    Connected();
+			    if (Connect.State == ConnectionState.Open){
+				    string cabtype;
+				    switch (args["material"]) {
+				    case "al": 
+				    {
+					    cabtype = "plumbum_shell";
+					    break;
+				    }
+				    case "cu":
+				    {
+					    cabtype = "steel_shell";
+					    break;
+				    }
+				    default:
+					    throw new InvalidInitArgument();
+				    }
+				    SQLiteCommand cmd = new SQLiteCommand(Connect);
+				    cmd.CommandText = "SELECT resistance, reactance, zero_resistance, zero_reactance FROM cable WHERE material='" + args["material"] + "' AND type='" +cabtype + "' AND cross_section='" + args["cross_section"] + "' AND cores='4'";
+				    SQLiteDataReader reader = cmd.ExecuteReader();
+				    if (reader.Read())
+				    {
+					    Initialize(obj, lenght * (double)reader["resistance"], lenght *(double) reader["reactance"],  lenght * (double) reader["zero_resistance"], lenght *(double) reader["zero_reactance"]); 
+					    Connect.Dispose();
+				    }
+				    else
+				    {
+					    Connect.Dispose();
+					    throw new InvalidInit();
+				    }
+			    }else{
+                    Connect.Dispose();
 					throw new InvalidInit();
-//					return null;
-				}
-			}
-			Connect.Dispose();
-//			throw new InvalidInit();
-//			return null;
-		}
+                }
+            }else{
+                if (args.ContainsKey("resistance") || args.ContainsKey("reactance") || args.ContainsKey("zero_resistance") || args.ContainsKey("zero_reactance"))
+                {
+                    AvailableInit(obj, args, lenght);
+                }
+                else
+                {
+                    throw new InvalidInitArgument();
+                }
+            }
+        }
 
 		/// <summary>
 		/// Inits the bus.
@@ -171,39 +198,57 @@ namespace ElectriCSInitElements
 		// TODO Доработать для более широково спектра шинопроводов!
 		public void InitBus (dynamic obj, Dictionary<string,string> args)
 		{
-			double lenght, cs;
-            //try {
-            //    double.TryParse (args ["lenght"], out lenght);
-            //    double.TryParse (args ["amperage"], out cs);
-            //} catch {
-            //    throw new InvalidInitArgument ();
-            //}	
-            ValidInit(args["lenght"], out lenght);
-            ValidInit(args["amperage"], out cs);
-			if (!(cs == 250 || cs == 400 || cs == 630 || cs == 1250 || cs == 1600 || cs == 2500 || cs == 3200 || cs == 4000)) {
-				throw new InvalidInitArgument ();
-			}
-			Connected();
-			if (Connect.State == ConnectionState.Open) {
-				SQLiteCommand cmd = new SQLiteCommand(Connect);
-				cmd.CommandText = "SELECT resistance, reactance, zero_resistance, zero_reactance FROM bus WHERE amperage='" + args["amperage"] + "'";
-				SQLiteDataReader reader = cmd.ExecuteReader();
-				if (reader.Read())
-				{
-//					Dictionary<string,double> result = new Dictionary<string, double>(){{"resistance", lenght * (double)reader["resistance"]}, {"reactance",  lenght *(double) reader["reactance"]}, {"zero_resistance", lenght * (double) reader["zero_resistance"]}, {"zero_reactance",  lenght *(double) reader["zero_reactance"]}}; 
-					Initialize(obj, lenght * (double)reader["resistance"], lenght *(double) reader["reactance"], lenght * (double) reader["zero_resistance"], lenght *(double) reader["zero_reactance"]); 
-					Connect.Dispose();
-//					return result;
-				}
-				else
-				{
-					Connect.Dispose();
-					throw new InvalidInit();
-//					return null;
-				}
-			}
-			Connect.Dispose();
-//			return null;
+			double lenght;
+            if (args.ContainsKey("lenght"))
+            {
+                ValidInit(args["lenght"], out lenght);
+            }
+            else
+            {
+                throw new InvalidInitArgument();
+            }
+            if (args.ContainsKey("resistance") || args.ContainsKey("reactance") || args.ContainsKey("zero_resistance") || args.ContainsKey("zero_reactance"))
+            {
+                AvailableInit(obj, args, lenght);
+            }
+            else
+            {
+                if (args.ContainsKey("amperage"))
+                {
+                    double amperage;
+                    ValidInit(args["amperage"], out amperage);
+                    if (!(amperage == 250 || amperage == 400 || amperage == 630 || amperage == 1250 || amperage == 1600 || amperage == 2500 || amperage == 3200 || amperage == 4000))
+                    {
+                        throw new InvalidInitArgument();
+                    }
+                    Connected();
+                    if (Connect.State == ConnectionState.Open)
+                    {
+                        SQLiteCommand cmd = new SQLiteCommand(Connect);
+                        cmd.CommandText = "SELECT resistance, reactance, zero_resistance, zero_reactance FROM bus WHERE amperage='" + args["amperage"] + "'";
+                        SQLiteDataReader reader = cmd.ExecuteReader();
+                        if (reader.Read())
+                        {
+                            Initialize(obj, lenght * (double)reader["resistance"], lenght * (double)reader["reactance"], lenght * (double)reader["zero_resistance"], lenght * (double)reader["zero_reactance"]);
+                            Connect.Dispose();
+                        }
+                        else
+                        {
+                            Connect.Dispose();
+                            throw new InvalidInit();
+                        }
+                    }
+                    else
+                    {
+                        throw new InvalidConnect();
+                    }
+                    //Connect.Dispose();
+                }
+                else
+                {
+                    throw new InvalidInitArgument();
+                }
+            }
 		}
 
 		/// <summary>
@@ -223,52 +268,31 @@ namespace ElectriCSInitElements
 		/// </param>
 		public void InitAirway (dynamic obj, Dictionary<string,string> args)
 		{
-//			Dictionary<string,double> result = new Dictionary<string, double> ();
 			double resistance, reactance, zero_resistance, zero_reactance;
 			double lenght, cross_section, a;
-            //try {
-            //    double.TryParse (args ["lenght"], out lenght);
-            //    double.TryParse (args ["cross_section"], out cross_section);
-            //} catch {
-            //    throw new InvalidInitArgument ();
-            //}
             ValidInit(args["lenght"], out lenght);
             ValidInit("cross_section", out cross_section);
 			if (args.ContainsKey ("resistance")) {
-                //double.TryParse (args ["resistance"], out resistance);
                 ValidInit(args["resistance"], out resistance);
 			} else {
 				resistance = Ro[args["material"]] * lenght / cross_section;
 			}
-//			result.Add("resistance", resistance * lenght);
 			if (args.ContainsKey ("reactance")) {
-                //double.TryParse (args ["reactance"], out reactance);
                 ValidInit(args["reactance"], out reactance);
 			} else {
-                //try
-                //{
-                //    double.TryParse(args["a"], out a);
-                //}catch{
-                //    throw new InvalidInitArgument();
-                //}
                 ValidInit(args["a"], out a);
 				reactance = 0.000145 * Math.Log10(1000 * a / (Math.Sqrt(cross_section / Math.PI)));
 			}
-//			result.Add("reactance", reactance * lenght);
 			if (args.ContainsKey ("zero_resistance")) {
-                //double.TryParse (args ["zero_resistance"], out zero_resistance);
                 ValidInit(args["zero_resistance"], out zero_resistance);
 			} else {
 				zero_resistance = 0.00015 * resistance;
 			}
-//			result.Add("zero_resistance", zero_resistance * lenght);
 			if (args.ContainsKey ("zero_reactance")) {
 				double.TryParse (args ["zero_reactance"], out zero_reactance);
 			} else {
 				zero_reactance = AirwayX0X1[args["type"]] * reactance;
 			}
-//			result.Add("zero_reactance", zero_reactance * lenght);
-//			return result;
 			Initialize(obj, resistance * lenght, reactance * lenght, zero_resistance * lenght, zero_reactance * lenght);
 		}
 
@@ -289,14 +313,6 @@ namespace ElectriCSInitElements
 		{
 			double power, voltage, Pk, uk;
 			double resistance, reactance, zero_resistance, zero_reactance;
-            //try {
-            //    double.TryParse (args ["voltage"], out voltage);
-            //    double.TryParse (args ["power"], out power);
-            //    double.TryParse (args ["Pk"], out Pk);
-            //    double.TryParse (args ["uk"], out uk);
-            //} catch {
-            //    throw new InvalidInitArgument ();
-            //}
             ValidInit(args["voltage"], out voltage);
             ValidInit(args["power"], out power);
             ValidInit(args["Pk"], out Pk);
@@ -304,11 +320,6 @@ namespace ElectriCSInitElements
 			resistance = Pk * Math.Pow ((voltage / power), 2);
 			reactance = (Math.Pow (voltage, 2) / (100 * power)) * Math.Sqrt (Math.Pow (uk, 2) - Math.Pow ((100 * Pk / power), 2));
 			if (args.ContainsKey ("zero_resistance")) {
-                //try {
-                //    double.TryParse (args ["zero_resistance"], out zero_resistance);
-                //} catch {
-                //    throw new InvalidInitArgument ();
-                //}
                 ValidInit(args["zero_resistance"], out zero_resistance);
 			} else {
 				if (args.ContainsKey("scheme") && args["scheme"]=="DD"){
@@ -318,11 +329,6 @@ namespace ElectriCSInitElements
 				}
 			}
 			if (args.ContainsKey ("zero_reactance")) {
-                //try {
-                //    double.TryParse (args ["zero_reactance"], out zero_reactance);
-                //} catch {
-                //    throw new InvalidInitArgument ();
-                //}
                 ValidInit(args["zero_reactance"], out zero_reactance);
 			} else {
 				if (args.ContainsKey("scheme") && args["scheme"]=="DD"){
@@ -331,7 +337,6 @@ namespace ElectriCSInitElements
 					zero_reactance = reactance;
 				}
 			}
-			//return new Dictionary<string, double>(){{"resistance", resistance}, {"reactance", reactance}, {"zero_resistance", zero_resistance}, {"zero_reactance", zero_reactance}};
 			Initialize(obj, resistance, reactance, zero_resistance, zero_reactance);
 		}
 
@@ -350,44 +355,24 @@ namespace ElectriCSInitElements
 		/// </param>
 		public void InitSystem (dynamic obj, Dictionary<string,string> args)
 		{
-			//Dictionary<string,double> result = new Dictionary<string, double> (){{"resistance",0}, {"zero_resistance", 0}, {"zero_reactance", 0}};
 			double reactance = 0;
 			if (args.ContainsKey ("reactance")) {
-                //try {
-                //    double.TryParse (args ["reactance"], out reactance);
-                //} catch {
-                //    throw new InvalidInitArgument ();
-                //}
                 ValidInit(args["reactance"], out reactance);
 			}
 			if (args.ContainsKey ("power") && args.ContainsKey ("lowvoltage")) {
 				double power, lowvoltage;
-                //try {
-                //    double.TryParse (args ["power"], out power);
-                //    double.TryParse (args ["lowvoltage"], out lowvoltage);
-                //} catch {
-                //    throw new InvalidInitArgument ();
-                //}
                 ValidInit(args["power"], out power);
                 ValidInit(args["lowvoltage"], out lowvoltage);
 				reactance = Math.Pow (lowvoltage, 2) / power;
 			}
 			if (args.ContainsKey ("amperage") && args.ContainsKey ("highvoltage") && args.ContainsKey ("lowvoltage")) {
 				double amperage, highvoltage, lowvoltage;
-                //try{
-                //    double.TryParse(args["amperage"], out amperage);
-                //    double.TryParse(args["highvoltage"], out highvoltage);
-                //    double.TryParse(args["lowvoltage"], out lowvoltage);
-                //}catch{
-                //    throw new InvalidInitArgument();
-                //}
                 ValidInit(args["amperage"], out amperage);
                 ValidInit(args["highvoltage"], out highvoltage);
                 ValidInit(args["lowvoltage"], out lowvoltage);
 				reactance = Math.Pow(lowvoltage, 2) / (Math.Sqrt(3) * amperage * highvoltage);
 			}
 			Initialize(obj, 0, reactance, 0, 0);
-			//return result;
 		}
 
 		/// <summary>

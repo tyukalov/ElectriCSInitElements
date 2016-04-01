@@ -43,7 +43,6 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="Exceptions.cs" />
-    <Compile Include="test.cs" />
     <Compile Include="Init.cs" />
   </ItemGroup>
   <ItemGroup>

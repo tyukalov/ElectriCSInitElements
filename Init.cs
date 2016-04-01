@@ -34,6 +34,7 @@ using System.Configuration;
 
 namespace ElectriCSInitElements
 {
+	// TODO Использованы устаревшие методы чтения конфигурационных парамтеров!!
 	public class Init
 	{
 		/// <summary>
